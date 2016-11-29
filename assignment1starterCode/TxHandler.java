@@ -18,8 +18,8 @@ public class TxHandler {
      * (1) all outputs claimed by tx are in the current UTXO pool
      * (2) the signatures on each input of tx are valid
      * (3) no UTXO is claimed multiple times by tx
-     * (4) all of tx’s output values are non-negative
-     * (5) the sum of tx’s input values is greater than or equal
+     * (4) all of tx's output values are non-negative
+     * (5) the sum of tx's input values is greater than or equal
      * to the sum of its output values; and false otherwise.
      */
     public boolean isValidTx(Transaction tx) {
@@ -61,16 +61,18 @@ public class TxHandler {
 
                     if (isValid) {
                         IntStream.range(0, transaction.getInputs().size())
-                                .forEach(i -> {
-                                    utxoPool.removeUTXO(new UTXO(transaction.getInput(i).prevTxHash, transaction.getInput(i).outputIndex));
-                                    utxoPool.addUTXO(new UTXO(transaction.getHash(), i), transaction.getOutput(i));
-                                });
+                                .forEach(i ->
+                                    utxoPool.removeUTXO(new UTXO(transaction.getInput(i).prevTxHash, transaction.getInput(i).outputIndex))
+                                );
+                        IntStream.range(0, transaction.getOutputs().size())
+                                .forEach(i ->
+                                    utxoPool.addUTXO(new UTXO(transaction.getHash(), i), transaction.getOutput(i))
+                                );
 
                         return true;
                     } else {
                         return false;
                     }
                 }).toArray(Transaction[]::new);
-
     }
 }
