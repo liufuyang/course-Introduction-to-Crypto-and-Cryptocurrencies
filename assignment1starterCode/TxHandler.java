@@ -1,6 +1,5 @@
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class TxHandler {
 
@@ -11,88 +10,48 @@ public class TxHandler {
     }
 
     public boolean isValidTx(Transaction tx) {
-//        boolean isValid = tx.getInputs().stream()
-//                .map(input -> new UTXO(input.prevTxHash, input.outputIndex))
-//                .allMatch(utxo -> utxoPool.contains(utxo));
-//
-//        isValid = isValid && tx.getInputs().stream()
-//                .allMatch(input -> Crypto.verifySignature(
-//                        utxoPool.getTxOutput(new UTXO(input.prevTxHash, input.outputIndex)).address,
-//                        tx.getRawDataToSign(input.outputIndex),
-//                        input.signature));
-//
-//        isValid = isValid && (tx.getInputs().stream().map(input -> new UTXO(input.prevTxHash, input.outputIndex)).distinct().count()
-//                == tx.getInputs().stream().count()
-//        );
-//
-//        isValid = isValid && tx.getOutputs().stream().allMatch(output -> output.value >= 0.0);
-//
-//        isValid = isValid && (tx.getInputs().stream().mapToDouble(input -> utxoPool.getTxOutput(new UTXO(input.prevTxHash, input.outputIndex)).value).sum() >= tx.getOutputs().stream().mapToDouble(output -> output.value).sum());
+                boolean isValid = tx.getInputs().stream()
+                        .map(input -> new UTXO(input.prevTxHash, input.outputIndex))
+                        .allMatch(utxo -> utxoPool.contains(utxo));
 
+                isValid = isValid && IntStream.range(0, tx.getInputs().size())
+                        .allMatch(i -> {
+                            Transaction.Output previousOutput = utxoPool.getTxOutput(new UTXO(tx.getInput(i).prevTxHash, tx.getInput(i).outputIndex));
+                            byte[] m = tx.getRawDataToSign(i);
+                            byte[] sig = tx.getInput(i).signature;
+                            boolean sigValid = previousOutput.address.verifySignature(m, sig); // use this for passing local check
+                            //boolean sigValid = Crypto.verifySignature(previousOutput.address, m, sig); // use this for homework submission
+                            return sigValid;
+                        });
 
-        //
-        boolean isValid = true;
-        int len = tx.getInputs().size();
+                isValid = isValid && (tx.getInputs().stream().map(input -> new UTXO(input.prevTxHash, input.outputIndex)).distinct().count()
+                        == tx.getInputs().stream().count()
+                );
 
-        Set<UTXO> set = new HashSet<>();
-        double oldSum = 0.0;
-        double txSum = 0.0;
+                isValid = isValid && tx.getOutputs().stream().allMatch(output -> output.value >= 0.0);
 
-        for(int i = 0; i<len; i++) {
-            UTXO utxo = new UTXO(tx.getInput(i).prevTxHash, tx.getInput(i).outputIndex);
-            isValid = isValid && utxoPool.contains(utxo);
+                isValid = isValid && (tx.getInputs().stream().mapToDouble(input -> utxoPool.getTxOutput(new UTXO(input.prevTxHash, input.outputIndex)).value).sum() >= tx.getOutputs().stream().mapToDouble(output -> output.value).sum());
 
-            isValid = isValid && Crypto.verifySignature(
-                    utxoPool.getTxOutput(utxo).address,
-                    tx.getRawDataToSign(tx.getInput(i).outputIndex),
-                    tx.getInput(i).signature);
-
-            set.add(utxo);
-
-            isValid = isValid && (tx.getOutput(i).value >= 0.0);
-
-            oldSum += utxoPool.getTxOutput(utxo).value;
-            txSum += tx.getOutput(i).value;
-        }
-
-
-        return  isValid && (set.size() == len) && (oldSum >= txSum);
+        return isValid;
     }
 
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
 
-        ArrayList<Transaction> txs = new ArrayList<>();
+                return Stream.of(possibleTxs).filter(transaction -> {
+                    boolean isValid = isValidTx(transaction);
 
-        for (int i = 0; i < possibleTxs.length; i++) {
-            boolean isValid = isValidTx(possibleTxs[i]);
+                    if (isValid) {
+                        IntStream.range(0, transaction.getInputs().size())
+                                .forEach(i -> {
+                                    utxoPool.removeUTXO(new UTXO(transaction.getInput(i).prevTxHash, transaction.getInput(i).outputIndex));
+                                    utxoPool.addUTXO(new UTXO(transaction.getHash(), i), transaction.getOutput(i));
+                                });
 
-            if (isValid) {
-                txs.add(possibleTxs[i]);
-
-                for(int j=0; j<possibleTxs[i].getInputs().size(); j++) {
-                    utxoPool.removeUTXO(new UTXO(possibleTxs[i].getInput(j).prevTxHash, possibleTxs[i].getInput(j).outputIndex));
-                    utxoPool.addUTXO(new UTXO(possibleTxs[i].getHash(), j), possibleTxs[i].getOutput(j));
-                }
-            }
-        }
-
-        return txs.toArray(new Transaction[txs.size()]);
-
-//        return Stream.of(possibleTxs).filter(transaction -> {
-//            boolean isValid = isValidTx(transaction);
-//
-//            if (isValid) {
-//                IntStream.range(0, transaction.getInputs().size())
-//                        .forEach(i -> {
-//                            utxoPool.removeUTXO(new UTXO(transaction.getInput(i).prevTxHash, transaction.getInput(i).outputIndex));
-//                            utxoPool.addUTXO(new UTXO(transaction.getHash(), i), transaction.getOutput(i));
-//                        });
-//
-//                return true;
-//            } else {
-//                return false;
-//            }
-//        }).toArray(Transaction[]::new);
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }).toArray(Transaction[]::new);
 
     }
 }
