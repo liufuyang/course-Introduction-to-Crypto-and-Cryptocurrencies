@@ -4,7 +4,6 @@
 // test your nodes. You will want to try creating some deviant nodes and
 // mixing them in the network to fully test.
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -82,10 +81,10 @@ public class Simulation {
          // proposals. The value is an ArrayList containing 1x2 Integer arrays. The first
          // element of each array is the id of the transaction being proposed and the second
          // element is the index # of the node proposing the transaction.
-         HashMap<Integer, ArrayList<Integer[]>> allProposals = new HashMap<Integer, ArrayList<Integer[]>>();
+         HashMap<Integer, Set<Candidate>> allProposals = new HashMap<>();
 
          for (int i = 0; i < numNodes; i++) {
-            Set<Transaction> proposals = nodes[i].getProposals();
+            Set<Transaction> proposals = nodes[i].sendToFollowers();
             for (Transaction tx : proposals) {
                if (!validTxIds.contains(tx.id))
                   continue; // ensure that each tx is actually valid
@@ -93,19 +92,13 @@ public class Simulation {
                for (int j = 0; j < numNodes; j++) {
                   if(!followees[j][i]) continue; // tx only matters if j follows i
 
-                  if(allProposals.containsKey(j)) {
-                     Integer[] candidate = new Integer[2]; 
-                     candidate[0] = tx.id;
-                     candidate[1] = i; 
-                     allProposals.get(j).add(candidate);
-                  } else {
-                     ArrayList<Integer[]> candidates = new ArrayList<Integer[]>();
-                     Integer[] candidate = new Integer[2]; 
-                     candidate[0] = tx.id; 
-                     candidate[1] = i;   
-                     candidates.add(candidate);
-                     allProposals.put(j, candidates);
+                  if (!allProposals.containsKey(j)) {
+                	  Set<Candidate> candidates = new HashSet<>();
+                	  allProposals.put(j, candidates);
                   }
+                  
+                  Candidate candidate = new Candidate(tx, i);
+                  allProposals.get(j).add(candidate);
                }
 
             }
@@ -114,13 +107,13 @@ public class Simulation {
          // Distribute the Proposals to their intended recipients as Candidates
          for (int i = 0; i < numNodes; i++) {
             if (allProposals.containsKey(i))
-               nodes[i].receiveCandidates(allProposals.get(i));
+               nodes[i].receiveFromFollowees(allProposals.get(i));
          }
       }
 
       // print results
       for (int i = 0; i < numNodes; i++) {
-         Set<Transaction> transactions = nodes[i].getProposals();
+         Set<Transaction> transactions = nodes[i].sendToFollowers();
          System.out.println("Transaction ids that Node " + i + " believes consensus on:");
          for (Transaction tx : transactions)
             System.out.println(tx.id);
@@ -132,3 +125,4 @@ public class Simulation {
 
 
 }
+
